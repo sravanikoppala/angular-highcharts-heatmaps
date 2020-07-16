@@ -3,9 +3,12 @@
         Heatmaps!
     </h1>
 </div>
-<highcharts-chart [Highcharts]="highcharts" [options]="chartOptions" style="width: 100%; height: 400px; display: block;">
-</highcharts-chart>
+
+<div>
+    <highcharts-chart [Highcharts]="highcharts" [options]="chartOptions" style="width: 100%; height: 400px; display: block;">
+    </highcharts-chart>
+</div>
 <br>
 <h2>AppSatus: {{ appStatus | async }} </h2>
-<app-heatmap-graph></app-heatmap-graph>
+
 <router-outlet></router-outlet>
