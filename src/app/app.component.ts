@@ -1,8 +1,11 @@
+import { logging } from 'protractor';
+import { fetchDataFromApi } from './data-from-api.service';
 import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import * as Highcharts from 'highcharts';
-import { map, takeUntil } from 'rxjs/operators';
-import { Subject } from 'rxjs';
+import { map, takeUntil, flatMap, tap, concatMap, mergeMap, timeout } from 'rxjs/operators';
+import { Subject, Observable } from 'rxjs';
+
 
 @Component({
    selector: 'app-root',
@@ -19,8 +22,8 @@ export class AppComponent implements OnInit, OnDestroy {
    promise;
    private unsubscribe$ = new Subject;
    sales = [];
-   users: string[] = [];
-   days: string[] = [];
+   //  users = [0, 1, 2, 3];
+   //days= [0, 1, 2, 3, 4, 5, 6];;
    highcharts = Highcharts;
    chartOptions: any;
    observableData: number;
@@ -33,20 +36,41 @@ export class AppComponent implements OnInit, OnDestroy {
             marginBottom: 80,
          },
          title: {
-            text: 'Sales per employee per weekday'
+            text: null
          },
          xAxis: {
             type: 'string',
-            categories: this.users
+            title: {
+               enabled: true,
+               text: 'GR(mm/h)',
+               style: {
+                  fontWeight: 'bolder'
+               }
+            }
          },
          yAxis: {
             type: 'string',
-            categories: this.days,
-            title: null
+            title: {
+               enabled: true,
+               text: 'DPR (mm/h)',
+               style: {
+                  fontWeight: 'bolder'
+               }
+            }
          },
          colorAxis: {
-            min: 0,
-            minColor: '#FFFFFF',
+            stops: [
+               [0, "#00008B"],
+               [0.2, "#00CCFF"],
+               [0.4, "#b3e8FF"],
+               [0.5, "#00FF00"],
+               [0.7, "#FFFF00"],
+               [0.8, "#FF4500"],
+               [0.9, "#FF0000"],
+               [1.1, "#8B0000"],
+               [1.2, "#FFFFFF"],
+
+            ],
             maxColor: Highcharts.getOptions().colors[0]
          },
          legend: {
@@ -55,13 +79,16 @@ export class AppComponent implements OnInit, OnDestroy {
             margin: 0,
             verticalAlign: 'top',
             y: 25,
-            symbolHeight: 280
+            symbolHeight: 250,
+            title: {
+               enabled: true,
+               text: '% of samples'
+            }
          },
          series: [{
-            name: 'Sales per employee',
             borderWidth: 0,
             data: this.sales,
-
+            name: '% of samples',
             dataLabels: {
                enabled: false
             }
@@ -69,67 +96,57 @@ export class AppComponent implements OnInit, OnDestroy {
          credits: {
             enabled: false
          }
-
       };
    }
+   //homeworld: Observable<{}>;
+   constructor(private _fetchDataFromApi: fetchDataFromApi) { }
 
-   constructor(private http: HttpClient) { }
    ngOnInit() {
       this.getData();
    }
 
    getData() {
-      let x = this.http.get('http://localhost:3000/db')
-         .pipe(map(responseData => {
-            const dataArray = [];
-            for (const key in responseData) {
-               if (responseData.hasOwnProperty(key)) {
-                  dataArray.push({ ...responseData[key] });
+      let queryUrl = 'https://e3x3fqdwla.execute-api.us-east-1.amazonaws.com/test3/?gr_rc_rainrate>0&columns=gr_rc_rainrate,gr_dm';
+      let apiUrl = 'https://e3x3fqdwla.execute-api.us-east-1.amazonaws.com/test3/result/?qid=9d21638c-f241-470c-90f2-25e19b3cf1eb';
+      let csvUrl = 'https://aws-athena-query-results-capri-real-time.s3.amazonaws.com/9d21638c-f241-470c-90f2-25e19b3cf1eb.csv';
+        
+         
+
+      // this._fetchDataFromApi.getQuery(queryUrl)
+      //    .subscribe(data => {
+      //       let queryId = (data.split('queryId=')[1]).split('}')[0];
+      //       apiUrl = apiUrl.concat(queryId);
+      //       console.log(apiUrl);
+      //    })
+      let interval = setInterval(() => {
+         this._fetchDataFromApi.fetchData(apiUrl)
+            .subscribe(data => {
+               console.log(data['message']);
+               if (data['message'] == undefined) {
+                  console.log("inside if clear interval");
+                  clearInterval(interval);
+                  for (let i in data['data']) {
+                     let array: number[] = [];
+                     array.push(Number(data['data'][i]['gr_rc_rainrate']));
+                     array.push(Number(data['data'][i]['gr_dm']));
+                     array.push(Number(data['data'][i]['gr_rc_rainrate']));
+                     let convertedArray: number[] = [];
+                     convertedArray.push(Number(array[0].toFixed(2)));
+                     convertedArray.push(Number(array[1].toFixed(2)));
+                     convertedArray.push(1);
+                     
+                     // console.log(typeof(Number(array[0].toFixed(2))));
+                     this.sales.push(convertedArray);
+                     this.plotHeatmap();
+                     
+                  }
+                  this.calcPercentageOfSamples(this.sales);
+                  console.log(this.sales);
                }
-            }
-            //takeUntil => takeUntil(this.unsubscribe$)
-            return dataArray;
-         }))
-         .subscribe(data => {
-            //this.getHttpData = data;
-            //console.log(data);
-            for (const name in data[1]) {
-               this.users.push(data[1][name].name);
-            }
-            for (const day in data[2]) {
-               this.days.push(data[2][day].day);
-            }
-            const dataArray = [];
-            for (const key in data[0][0]) {
-               dataArray.push({ ...data[0][0][key] });
-            }
-            for (const name in this.users) {
-               for (const day in this.days) {
-                  let array: number[] = [];
-                  array.push(Number(name));
-                  array.push(Number(day));
-                  array.push(Number(dataArray[name][day].Value));
-                  this.promise = new Promise((resolve, reject) => {
-                     setTimeout(() => {
-                        this.sales.push(array);
-                        this.plotHeatmap();
-                        //location.reload();
-                     }, 2000);
-                  });
+              //window.open(data["file_url"]);
 
-               }
-
-
-            }
-           // console.log(this.getHttpData);
-            //this.plotHeatmap();
-            return data;
-         },
-            err => console.log('Recived error:', err),
-            () => console.log('Complete!')
-
-         );
-      console.log(this.getHttpData);
+            })
+      }, 1000);     
 
    }
 
@@ -138,30 +155,17 @@ export class AppComponent implements OnInit, OnDestroy {
       this.unsubscribe$.complete();
    }
 
-   refreshHttpData() {
-      setInterval(() => {
-         this.http.get('http://localhost:3000/db')
-            .pipe(map(responseData => {
-               const dataArray = [];
-               for (const key in responseData) {
-                  if (responseData.hasOwnProperty(key)) {
-                     dataArray.push({ ...responseData[key] });
-                  }
-               }
-               //takeUntil => takeUntil(this.unsubscribe$)
-               return dataArray;
-            }))
-            .subscribe(data => {
-               if (data == this.getHttpData) {
-                  console.log("Both are equal");
-               }
-               else {
-                  console.log("Both are not equal");
+   calcPercentageOfSamples(array){
+      array.forEach(function (value, index1) {
+         array.forEach(function (element, index2)  {
+         if(value == element && index1 == index2){
+            value[2]+= 1;
+            delete array[index2];
+         }           
+          }); 
+        // console.log(value);
+       }); 
 
-               }
-            });
-
-      }, 2000);
    }
 
 
