@@ -1,6 +1,6 @@
 # HighchartsHeatmap
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 9.1.4.
+This project utlizes the highchart library to display heatmaps. It uses HTTP get requests to make an API call to fetch data and displays the heatmaps dynamically. It also has filters to optimize the fetched data. This project is creats a responsive website in Angular 9 using Angular Material.
 
 ## Development server
 
